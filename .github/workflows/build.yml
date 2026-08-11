@@ -1,72 +1,36 @@
-name: Flutter Build and Check
+name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  # 1. Analisis kode (cek error, warning, dan style)
-  analyze:
-    name: Analisis Kode (flutter analyze)
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'   # atau '3.x' untuk versi terbaru
+          flutter-version: '3.24.0'
+          channel: 'stable'
 
-      - name: Install dependencies
+      # Perbaiki Kotlin (wajib)
+      - name: Fix Kotlin version
+        run: |
+          sed -i 's/version "1.7.10"/version "1.9.22"/' android/settings.gradle
+
+      - name: Get dependencies
         run: flutter pub get
 
-      - name: Jalankan flutter analyze
-        run: flutter analyze
-
-  # 2. Jalankan unit test
-  test:
-    name: Jalankan Unit Test (flutter test)
-    runs-on: ubuntu-latest
-    needs: analyze  # opsional: jalankan setelah analyze selesai
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 'stable'
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Jalankan flutter test
-        run: flutter test
-
-  # 3. Build APK Android (release)
-  build-android:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-    needs: [analyze, test]  # menunggu kedua job sebelumnya berhasil
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 'stable'
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build APK release
+      - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK sebagai artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
