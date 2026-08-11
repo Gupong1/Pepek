@@ -19,10 +19,20 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      # Perbaiki Kotlin (wajib)
+      # 🔧 Perbaiki Kotlin (WAJIB)
       - name: Fix Kotlin version
         run: |
-          sed -i 's/version "1.7.10"/version "1.9.22"/' android/settings.gradle
+          # Untuk settings.gradle (format baru)
+          if [ -f android/settings.gradle ]; then
+            sed -i 's/id "org.jetbrains.kotlin.android" version "[0-9.]*"/id "org.jetbrains.kotlin.android" version "1.9.22"/' android/settings.gradle
+          fi
+          # Untuk build.gradle (format lama)
+          if [ -f android/build.gradle ]; then
+            sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "1.9.22"/' android/build.gradle
+          fi
+          # Tampilkan isi untuk cek
+          cat android/settings.gradle || echo "settings.gradle tidak ada"
+          cat android/build.gradle || echo "build.gradle tidak ada"
 
       - name: Get dependencies
         run: flutter pub get
