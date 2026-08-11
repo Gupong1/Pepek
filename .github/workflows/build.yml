@@ -1,130 +1,73 @@
-name: Build APK with Auto Error Capture
+name: Flutter Build and Check
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
-  build-android:
+  # 1. Analisis kode (cek error, warning, dan style)
+  analyze:
+    name: Analisis Kode (flutter analyze)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
+          flutter-version: 'stable'   # atau '3.x' untuk versi terbaru
 
-      # 🔧 PERBAIKAN KOTLIN - ubah versi 1.7.10 -> 1.9.22
-      - name: Fix Kotlin version
-        run: |
-          sed -i 's/version "1.7.10"/version "1.9.22"/' android/settings.gradle
-          echo "✅ settings.gradle sudah diperbaiki:"
-          cat android/settings.gradle
-
-      - name: Get dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      # 🔥 BUILD APK (Pasti menghasilkan APK)
+      - name: Jalankan flutter analyze
+        run: flutter analyze
+
+  # 2. Jalankan unit test
+  test:
+    name: Jalankan Unit Test (flutter test)
+    runs-on: ubuntu-latest
+    needs: analyze  # opsional: jalankan setelah analyze selesai
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Jalankan flutter test
+        run: flutter test
+
+  # 3. Build APK Android (release)
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: [analyze, test]  # menunggu kedua job sebelumnya berhasil
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
       - name: Build APK release
-        id: build
-        continue-on-error: true
-        run: |
-          flutter build apk --release 2>&1 | tee build.log
-          echo "Build status: $?"
+        run: flutter build apk --release
 
-      # 📦 CARI APK di semua lokasi yang mungkin
-      - name: Find APK file
-        id: find-apk
-        if: success() || steps.build.outcome == 'success'
-        run: |
-          echo "Mencari APK di semua lokasi..."
-          find . -name "*.apk" -type f
-          
-          # Cari APK dan simpan path-nya
-          APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-            echo "✅ APK ditemukan di: $APK_PATH"
-          else
-            echo "❌ APK tidak ditemukan!"
-            echo "apk_path=" >> $GITHUB_OUTPUT
-          fi
-
-      # 📤 Upload APK jika ditemukan
-      - name: Upload APK artifact
-        if: steps.find-apk.outputs.apk_path != ''
+      - name: Upload APK sebagai artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: ${{ steps.find-apk.outputs.apk_path }}
-
-      # 📝 Jika build gagal, buat error.js
-      - name: Create error.js from build log
-        if: failure() || steps.build.outcome == 'failure'
-        run: |
-          echo "// Error log from Flutter build" > error.js
-          echo "const errorLog = \`" >> error.js
-          cat build.log >> error.js
-          echo "\`;" >> error.js
-          echo "console.error(errorLog);" >> error.js
-
-      # 📤 Upload error.js jika gagal
-      - name: Upload error.js artifact
-        if: failure() || steps.build.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: error-js
-          path: error.js
-
-      # ❌ Fail workflow if build failed
-      - name: Fail workflow if build failed
-        if: failure() || steps.build.outcome == 'failure'
-        run: exit 1
-
-      # 📋 Tampilkan struktur folder untuk debugging
-      - name: Show folder structure
-        if: always()
-        run: |
-          echo "=== Struktur folder build ==="
-          ls -la build/ || echo "Folder build tidak ada"
-          echo "=== Struktur folder build/app ==="
-          ls -la build/app/ || echo "Folder build/app tidak ada"
-          echo "=== Struktur folder build/app/outputs ==="
-          ls -la build/app/outputs/ || echo "Folder build/app/outputs tidak ada"
-          echo "=== Struktur folder build/app/outputs/flutter-apk ==="
-          ls -la build/app/outputs/flutter-apk/ || echo "Folder flutter-apk tidak ada"
-      # 📝 Jika build gagal, buat error.js dari log
-      - name: Create error.js from build log
-        if: failure() || steps.build.outcome == 'failure'
-        run: |
-          echo "// Error log from Flutter build" > error.js
-          echo "const errorLog = \`" >> error.js
-          cat build.log >> error.js
-          echo "\`;" >> error.js
-          echo "console.error(errorLog);" >> error.js
-
-      # 📤 Upload error.js jika gagal
-      - name: Upload error.js artifact
-        if: failure() || steps.build.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: error-js
-          path: error.js
-
-      # 📤 Upload APK jika berhasil
-      - name: Upload APK artifact
-        if: success() && steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
+          name: app-release.apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      # ❌ Jika build gagal, workflow tetap selesai dengan status gagal agar terlihat
-      - name: Fail workflow if build failed
-        if: failure() || steps.build.outcome == 'failure'
-        run: exit 1
