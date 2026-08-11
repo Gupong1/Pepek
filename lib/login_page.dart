@@ -262,7 +262,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               children: [
-                // Banner with fallback
+                // Banner with fallback (fixed: removed invalid onError)
                 Container(
                   width: double.infinity,
                   height: 180,
@@ -277,7 +277,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     image: const DecorationImage(
                       image: AssetImage('assets/images/login_banner.gif'),
                       fit: BoxFit.cover,
-                      onError: (exception, stackTrace) => AssetImage(''),
+                      // onError dihapus karena tidak valid untuk DecorationImage
                     ),
                   ),
                   child: Stack(
